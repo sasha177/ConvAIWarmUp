@@ -13,7 +13,15 @@ node dialogue_state {
     }
 
     can extract_entities {
-        // Entity extraction logic will be added a bit later on.
+        res = tfm_ner.extract_entity(visitor.question);
+        for ent in res {
+            ent_type = ent["entity_value"];
+            ent_text = ent["entity_text"];
+            if (!(ent_type in visitor.wlk_ctx["entities"])){
+                visitor.wlk_ctx["entities"][ent_type] = [];
+            }
+            visitor.wlk_ctx["entities"][ent_type].l::append(ent_text);
+        }
     }
 
     can init_wlk_ctx {
@@ -91,23 +99,26 @@ walker init {
 
 walker talk {
     has question;
-    can bi_enc.infer;
+    has wlk_ctx = {};
+    has response;
     root {
-        question = std.input("> ");
         take --> node::dialogue_root;
     }
-    dialogue_root {
-        intent_labels = -[intent_transition]->.edge.intent;
-        predicted_intent = bi_enc.infer(
-            contexts = [question],
-            candidates = intent_labels,
-            context_type = "text",
-            candidate_type = "text"
-        )[0]["predicted"]["label"];
-        take -[intent_transition(intent==predicted_intent)]-> node::dialogue_state;
-    }
     dialogue_state {
-        std.out(here.response);
+        if (!question) {
+            question = std.input("Question (Ctrl-C to exit)> ");
+            here::init_wlk_ctx;
+        }
+        here::nlu;
+        here::process;
+        if (visitor.wlk_ctx["respond"]) {
+            here::nlg;
+            std.out(response);
+            question = null;
+            take here;
+        } else {
+            take visitor.wlk_ctx["next_state"] else: take here;
+        }
     }
 }
 
