@@ -1,3 +1,5 @@
+import {*} with "./ai_model.jac";
+
 node dialogue_state:cai_state {
     can bi_enc.infer;
     can tfm_ner.extract_entity;
